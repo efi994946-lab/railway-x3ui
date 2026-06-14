@@ -2,34 +2,46 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Tehran
+ENV TERM=xterm-256color
+ENV HOME=/root
 
-# Install essentials
+# Base packages
 RUN apt-get update && apt-get install -y \
     curl wget git vim nano htop \
     python3 python3-pip \
     php php-cli \
-    nginx \
     build-essential \
     unzip zip \
-    sudo \
-    tzdata \
-    ca-certificates \
+    sudo tzdata ca-certificates \
+    openssh-server \
+    tini \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 20
-RUN apt-get remove -y libnode-dev libnode72 nodejs nodejs-doc npm 2>/dev/null || true \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+# Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install ttyd from binary (most reliable way)
-RUN curl -Lo /usr/local/bin/ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.3/ttyd.x86_64 \
-    && chmod +x /usr/local/bin/ttyd
+# Install wetty (web terminal - much more stable than ttyd)
+RUN npm install -g wetty
 
-# Install useful global npm packages
-RUN npm install -g pm2 serve
+# Setup root user
+RUN echo 'root:root123' | chpasswd \
+    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Create working directories
+# Setup bashrc
+RUN echo 'export PS1="\[\e[1;31m\][\u@vps \W]\$\[\e[0m\] "' >> /root/.bashrc \
+    && echo 'alias ll="ls -la"' >> /root/.bashrc \
+    && echo 'alias cls="clear"' >> /root/.bashrc \
+    && echo 'echo ""' >> /root/.bashrc \
+    && echo 'echo "  ╔══════════════════════════════╗"' >> /root/.bashrc \
+    && echo 'echo "  ║   Welcome to Arvin VPS 🚀    ║"' >> /root/.bashrc \
+    && echo 'echo "  ║   /root/main/arvin           ║"' >> /root/.bashrc \
+    && echo 'echo "  ╚══════════════════════════════╝"' >> /root/.bashrc \
+    && echo 'echo ""' >> /root/.bashrc
+
+# Create folders
 RUN mkdir -p /root/main/arvin
 
 WORKDIR /root/main/arvin
@@ -37,6 +49,7 @@ WORKDIR /root/main/arvin
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-EXPOSE 8080
+EXPOSE 3000
 
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/start.sh"]
